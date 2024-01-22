@@ -6,7 +6,11 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -36,8 +40,8 @@ public class MainActivity extends AppCompatActivity implements ValueEventListene
     private EditText telefono;
     private EditText marca;
     private EditText modelo;
-    private EditText matricula;
-
+    private AutoCompleteTextView matricula;
+    ArrayAdapter<String> adapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +49,28 @@ public class MainActivity extends AppCompatActivity implements ValueEventListene
         setContentView(R.layout.activity_main);
 
         DatabaseReference dbCoche = FirebaseDatabase.getInstance().getReference().child("coches");
+
+        adapter = new ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line);
+        matricula = findViewById(R.id.matricula);
+        matricula.setAdapter(adapter);
+
+        matricula.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                matricula.showDropDown();
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                buscarMatricula(s.toString());
+                matricula.showDropDown();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                matricula.showDropDown();
+            }
+        });
 
         dbCoche.addChildEventListener(this);
         dbCoche.addValueEventListener(this);
@@ -76,14 +102,36 @@ public class MainActivity extends AppCompatActivity implements ValueEventListene
         recyclerViewCoches.addItemDecoration(new DividerItemDecoration(this, LinearLayoutManager.VERTICAL));
 
         recyclerViewCoches.setAdapter(cochesAdapter);
+
+
+    }
+
+    public void buscarMatricula(String matricula){
+        DatabaseReference dbCoche = FirebaseDatabase.getInstance().getReference().child("coches");
+        Query query = dbCoche.orderByChild("matricula").startAt(matricula).endAt(matricula + "\uf8ff");
+        query.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                adapter.clear();
+                if (dataSnapshot.exists()){
+                    for (DataSnapshot snapshot : dataSnapshot.getChildren()){
+                        Coche coche = snapshot.getValue(Coche.class);
+                        adapter.add(coche.getMatricula());
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                // Handle potential errors
+                Toast.makeText(MainActivity.this, "Error: " + databaseError.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     // Mètode a implentar de la interfície "ValueEventListener"
     @Override
     public void onDataChange(DataSnapshot dataSnapshot) {
-        Toast.makeText(MainActivity.this, "Han canviat dades " + dataSnapshot.getKey() + ": " + dataSnapshot.getValue(), Toast.LENGTH_SHORT).show();
-        Toast.makeText(MainActivity.this, "Hi ha " + dataSnapshot.getChildrenCount() + " dates a la llista", Toast.LENGTH_SHORT).show();
-
         // Eliminem tot el contingut per no afegir cada cop que hi ha un canvi
         listaCoches.removeAll(listaCoches);
         // Recorrem tots els elements del DataSnapshot i els mostrem
@@ -244,7 +292,7 @@ public class MainActivity extends AppCompatActivity implements ValueEventListene
                         modelo.getText().toString(),
                         matricula.getText().toString().toUpperCase()
                 );
-                Toast toast = Toast.makeText(getApplicationContext(), "Coche modificado", Toast.LENGTH_SHORT);
+                Toast toast = Toast.makeText(getApplicationContext(), "Coche agregado", Toast.LENGTH_SHORT);
                 toast.show();
 
             } catch (Exception e){
